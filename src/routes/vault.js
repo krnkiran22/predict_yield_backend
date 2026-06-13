@@ -9,7 +9,12 @@ const suiClient = new SuiClient({ url: SUI_RPC });
 
 /**
  * Read vault_value_per_plp from the Predict on-chain object.
- * Returns a float in dUSDC units.
+ * Both vault.balance and treasury_cap.total_supply are raw integers
+ * sharing the same 6-decimal dUSDC scale, so the ratio is unit-free.
+ *
+ * On-chain structure (confirmed live):
+ *   Predict.vault.fields.balance           — raw vault dUSDC balance
+ *   Predict.treasury_cap.fields.total_supply.fields.value — raw PLP supply
  */
 async function fetchVaultValuePerPlp() {
   try {
@@ -20,11 +25,14 @@ async function fetchVaultValuePerPlp() {
     const fields = obj?.data?.content?.fields;
     if (!fields) return null;
 
-    // vault balance and plp supply are stored in scaled integers (1e6 for dUSDC)
-    const vaultBalance = Number(fields.vault?.fields?.balance || 0) / 1e6;
-    const plpSupply = Number(fields.plp_supply?.fields?.value || 1) / 1e6;
-    if (plpSupply === 0) return 1;
-    return vaultBalance / plpSupply;
+    const vaultBalanceRaw = Number(fields.vault?.fields?.balance || 0);
+    const plpSupplyRaw = Number(
+      fields.treasury_cap?.fields?.total_supply?.fields?.value || 1
+    );
+    if (plpSupplyRaw === 0) return 1;
+
+    // Both are in the same raw units — ratio gives dUSDC per PLP directly
+    return vaultBalanceRaw / plpSupplyRaw;
   } catch {
     return null;
   }
