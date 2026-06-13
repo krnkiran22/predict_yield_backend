@@ -24,7 +24,7 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const [oracles, state] = await Promise.allSettled([
-      getOracles(50, null),
+      getOracles(50, "active"),
       getOracleState(id),
     ]);
 
@@ -35,15 +35,15 @@ router.get("/:id", async (req, res) => {
     const now = Date.now();
     const timeToExpiryMs = oracle ? Math.max(oracle.expiry - now, 0) : 0;
 
-    // Compute implied probability at ATM strike if SVI params available
+    // Compute implied probability at min_strike if SVI params available
     let impliedProbability = null;
     if (oracleState?.svi_params && oracle) {
-      const strike = oracle.min_strike / 1e9; // convert from scaled int
-      const forward = oracleState.forward_price / 1e9;
+      // min_strike is a raw integer scaled by 1e9 → divide to get USD
+      const strike = oracle.min_strike / 1e9;
       impliedProbability = computeImpliedProbability(
         oracleState.svi_params,
         strike,
-        forward,
+        oracleState.forward_price,
         oracle.expiry
       );
     }
